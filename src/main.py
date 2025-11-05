@@ -22,7 +22,7 @@ from .csv_io import (
     save_events,
 )
 from .markdown import render_table, update_readme_table
-from .scrape import extract_main_text, fetch_html
+from .scrape import extract_main_text, extract_structured_event_details, fetch_html
 from .utils import now_jst_isoformat
 
 LOGGER = logging.getLogger("auto_event_calendar.main")
@@ -148,6 +148,7 @@ def _process_row(row: dict[str, str], timestamp: str) -> ProcessResult:
 
     try:
         html = fetch_html(url)
+        structured_details = extract_structured_event_details(html)
         text = extract_main_text(html)
         reference_name = current_values.get("event_name") or alias
         multi_events = extract_multiple_events(
@@ -172,6 +173,13 @@ def _process_row(row: dict[str, str], timestamp: str) -> ProcessResult:
                 alias=alias,
                 reference_name=reference_name,
             )
+
+        if structured_details:
+            for field, value in structured_details.items():
+                if not value:
+                    continue
+                if extracted.get(field) in (None, "", "不明"):
+                    extracted[field] = value
 
         if not isinstance(extracted, Mapping):
             raise ValueError("抽出結果がマッピングではありません")
