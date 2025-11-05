@@ -29,3 +29,16 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TZ: Asia/Tokyo
         run: python -m src.main
+      - name: Commit and push changes
+        env:
+          TZ: Asia/Tokyo
+        run: |
+          if git diff --quiet --exit-code; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "fablio-dev"
+          git config user.email "dev@fablio.jp"
+          git add events.csv README.md
+          git commit -m "[Bot] イベント情報を自動更新しました"
+          git push
