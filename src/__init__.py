@@ -1,0 +1,1 @@
+"""Auto event calendar package."""
