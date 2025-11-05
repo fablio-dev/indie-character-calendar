@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 import requests
 
@@ -157,13 +157,24 @@ def _process_row(row: dict[str, str], timestamp: str) -> ProcessResult:
             max_events=5,
         )
         if multi_events:
-            extracted = _select_best_event(alias, reference_name, multi_events)
+            candidates = [event for event in multi_events if isinstance(event, Mapping)]
+            if candidates:
+                extracted = _select_best_event(alias, reference_name, candidates)
+            else:
+                extracted = extract_event_info(
+                    text,
+                    alias=alias,
+                    reference_name=reference_name,
+                )
         else:
             extracted = extract_event_info(
                 text,
                 alias=alias,
                 reference_name=reference_name,
             )
+
+        if not isinstance(extracted, Mapping):
+            raise ValueError("抽出結果がマッピングではありません")
 
         if _all_unknown(extracted):
             message = "情報取得できず (不明)"
@@ -250,13 +261,13 @@ def _configure_logging(level_name: str) -> None:
 def _select_best_event(
     alias: str,
     reference_name: str,
-    events: list[dict[str, str]],
-) -> dict[str, str]:
+    events: Sequence[Mapping[str, str]],
+) -> Mapping[str, str]:
     """Select the event whose name best matches the alias/reference."""
     candidates = [alias, reference_name, alias.replace("_", " ")]
     normalized_candidates = [c.lower() for c in candidates if c]
 
-    def score(event: dict[str, str]) -> float:
+    def score(event: Mapping[str, str]) -> float:
         name = (event.get("event_name") or "").lower()
         if not name or name == "不明":
             return 0.0
