@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -99,7 +99,7 @@ def _render_row(
         row.get("deadline", "") or "",
         row.get("status", "") or "",
         url_cell,
-        row.get("last_updated", "") or "",
+        _format_last_updated(row.get("last_updated")),
     )
     return _render_markdown_row(cells)
 
@@ -133,3 +133,13 @@ def _render_url_cell(url: str) -> str:
     if not url:
         return "-"
     return f"[リンク]({url})"
+
+
+def _format_last_updated(value: str | None) -> str:
+    if not value:
+        return ""
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    return timestamp.strftime("%Y-%m-%d %H:%M")
