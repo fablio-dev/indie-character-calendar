@@ -118,10 +118,10 @@ def _remove_noise_by_keyword(soup: BeautifulSoup, keywords: Sequence[str]) -> No
 
 
 def _inject_alt_text(soup: BeautifulSoup) -> None:
-    for image in soup.find_all("img"):
-        if image is None or not hasattr(image, "get"):
+    for image in list(soup.find_all("img")):
+        if image is None or not hasattr(image, "attrs"):
             continue
-        alt_text = (image.get("alt") or "").strip()
+        alt_text = (image.attrs.get("alt") or "").strip()
         if alt_text:
             image.insert_after(NavigableString(alt_text))
         image.decompose()
