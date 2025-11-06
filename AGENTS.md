@@ -4,7 +4,7 @@
 
 ## 目的
 
-`events.csv` に定義されたイベント一覧を基に、各公式サイトを定期的に巡回（スクレイピング）し、Google Gemini API を用いて最新情報（開催日、場所、締切、応募状況）を抽出・正規化して `events.csv` と `README.md` を自動更新します。
+`events.csv` に定義されたイベント一覧を基に、各公式サイトを定期的に巡回（スクレイピング）し、Google Gemini API を用いて最新情報（開催日、場所、締切、応募状況）を抽出・正規化して `events.csv` と `docs/index.md` を自動更新します。
 
 この文書は、以下の仕様（改訂版）をそのまま可視化・運用可能な形に落とした「実装・運用上の作業規約」です。
 
@@ -49,9 +49,10 @@
 - `AGENTS.md`
 - `src/main.py`
 - `src/markdown.py:1`
+- `docs/index.md`
 
 ## 関連仕様の抜粋
-- AGENTS.md > 処理フロー(7) README 生成
+- AGENTS.md > 処理フロー(7) カレンダーページ生成
 
 ## 作業内容
 - <やることを3〜5行で>
@@ -79,7 +80,7 @@
 - 取得: `requests` + `beautifulsoup4`
 - 抽出: Google Gemini API
 - データ: `events.csv`（UTF-8）
-- 出力: `README.md`（指定範囲のみ置換）
+- 出力: `docs/index.md`（指定範囲のみ置換）
 
 ## ディレクトリ構成（推奨）
 
@@ -87,14 +88,16 @@
 .
 ├── AGENTS.md                 # 本ファイル
 ├── events.csv                # データストア（UTF-8）
-├── README.md                 # 一覧表をマーカー間に自動埋め込み
+├── README.md                 # プロジェクトの概要と開発手順
+├── docs/
+│   └── index.md              # GitHub Pages 向け一覧表（マーカー間を自動更新）
 ├── requirements.txt          # requests, beautifulsoup4 等
 ├── src/
 │   ├── main.py               # エントリーポイント（CLI）
 │   ├── scrape.py             # HTML取得・整形
 │   ├── ai_client.py          # Gemini API 呼び出し
 │   ├── csv_io.py             # CSV 読み書き・差分管理
-│   ├── markdown.py           # 表生成と README 置換
+│   ├── markdown.py           # 表生成と Markdown 置換
 │   └── utils.py              # 共通: 日付正規化/ログ/リトライ
 └── .github/
     └── workflows/
@@ -161,19 +164,19 @@
 - この場合も `is_csv_updated = True` とする（コメントが更新されるため）。
 - AIが空や `不明` を返した場合は `comment` に「情報取得できず (不明)」等を記録し `last_updated` 更新、`is_csv_updated = True`。
 
-7) README 生成（条件付き）
+7) カレンダーページ生成（条件付き）
 - `is_csv_updated` が `True` の場合のみ実施。
 - 最新の `events.csv` を読み込み、`event_date` でソート。
   - `YYYY-MM-DD` として解釈できる値は昇順（過去→未来）。
   - 日付として解釈できない値（`未定`, `不明` など）は表の一番下に送る。
 - Markdown 表を生成。今回更新行（`last_updated` が実行日時と一致）はイベント名を `**太字**` にする。
-- `README.md` の以下マーカーに挟まれた領域のみ置換する：
+- `docs/index.md` の以下マーカーに挟まれた領域のみ置換する：
   - `<!-- events:table:start -->`
   - `<!-- events:table:end -->`
 - 表の推奨列: `イベント名 | 開催日 | 開催場所 | 締切 | ステータス | 公式URL | 最終更新`
 
 8) 保存とコミット（条件付き）
-- `is_csv_updated` が `True` の場合のみ、`events.csv` と `README.md` をコミット・プッシュ。
+- `is_csv_updated` が `True` の場合のみ、`events.csv` と `docs/index.md` をコミット・プッシュ。
 - 例: コミットメッセージ「[Bot] イベント情報を自動更新しました」。
 - GitHub Actions で `permissions: contents: write` を付与する。
 
@@ -230,9 +233,9 @@ jobs:
 - `last_updated`: ISO 8601（例: `2025-11-03T05:00:00+09:00`）。JST（Asia/Tokyo）で記録（MUST）。
 - `event_date` / `deadline`: 可能な限り `YYYY-MM-DD`。判定不能なら `不明`（MUST）。
 
-## README のマーカー運用
+## docs/index.md のマーカー運用
 
-- `README.md` 内に次のコメント行を用意してください：
+- `docs/index.md` 内に次のコメント行を用意してください：
 
   ```md
   <!-- events:table:start -->
@@ -273,7 +276,7 @@ jobs:
 **Do**
 - 差分があるときだけ書き込む。
 - 例外時は `comment` と `last_updated` を必ず更新。
-- README はマーカー範囲のみ置換。
+- docs/index.md はマーカー範囲のみ置換。
 
 **Don’t**
 - 機械的な全ファイル上書き。

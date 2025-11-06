@@ -19,6 +19,7 @@ TABLE_HEADERS: tuple[str, ...] = (
 MARKER_START = "<!-- events:table:start -->"
 MARKER_END = "<!-- events:table:end -->"
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATE_SPLIT_SEPARATORS: tuple[str, ...] = ("/", "~", "〜", "～")
 
 
 def render_table(
@@ -48,19 +49,19 @@ def render_table(
     return "\n".join(lines)
 
 
-def update_readme_table(
-    readme_path: str | Path,
+def update_markdown_table(
+    target_path: str | Path,
     table_text: str,
 ) -> bool:
-    """Replace the README marker section with ``table_text``."""
-    content = Path(readme_path).read_text(encoding="utf-8")
+    """Replace the marker section inside ``target_path`` with ``table_text``."""
+    content = Path(target_path).read_text(encoding="utf-8")
     pattern = re.compile(
         rf"{re.escape(MARKER_START)}.*?{re.escape(MARKER_END)}",
         re.DOTALL,
     )
     match = pattern.search(content)
     if not match:
-        raise RuntimeError("README markers not found.")
+        raise RuntimeError("Marker section not found.")
 
     replacement = f"{MARKER_START}\n{table_text}\n{MARKER_END}"
     updated_content = pattern.sub(replacement, content, count=1)
@@ -68,8 +69,16 @@ def update_readme_table(
     if updated_content == content:
         return False
 
-    Path(readme_path).write_text(updated_content, encoding="utf-8")
+    Path(target_path).write_text(updated_content, encoding="utf-8")
     return True
+
+
+def update_readme_table(
+    readme_path: str | Path,
+    table_text: str,
+) -> bool:
+    """Backward-compatible wrapper that updates README.md."""
+    return update_markdown_table(readme_path, table_text)
 
 
 def _render_header() -> str:
@@ -121,10 +130,11 @@ def _sorting_key(row: dict[str, str]) -> tuple[int, date | str]:
 
 
 def _parse_date(value: str | None) -> date | None:
-    if not value or not DATE_RE.match(value):
+    primary = _extract_primary_date(value)
+    if not primary:
         return None
     try:
-        return date.fromisoformat(value)
+        return date.fromisoformat(primary)
     except ValueError:
         return None
 
@@ -143,3 +153,16 @@ def _format_last_updated(value: str | None) -> str:
     except ValueError:
         return value
     return timestamp.strftime("%Y-%m-%d %H:%M")
+
+
+def _extract_primary_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    candidate = value.strip()
+    for separator in DATE_SPLIT_SEPARATORS:
+        if separator in candidate:
+            candidate = candidate.split(separator, 1)[0].strip()
+            break
+    if DATE_RE.match(candidate):
+        return candidate
+    return None

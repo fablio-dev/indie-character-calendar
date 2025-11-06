@@ -21,14 +21,14 @@ from .csv_io import (
     load_events,
     save_events,
 )
-from .markdown import render_table, update_readme_table
+from .markdown import render_table, update_markdown_table
 from .scrape import extract_main_text, extract_structured_event_details, fetch_html
 from .utils import now_jst_isoformat
 
 LOGGER = logging.getLogger("auto_event_calendar.main")
 
 DEFAULT_EVENTS_PATH = Path("events.csv")
-DEFAULT_README_PATH = Path("README.md")
+DEFAULT_TABLE_PATH = Path("docs/index.md")
 
 
 @dataclass
@@ -48,10 +48,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     _configure_logging(args.log_level)
 
     events_path = Path(args.events)
-    readme_path = Path(args.readme)
+    table_path = Path(args.table)
 
     try:
-        run_pipeline(events_path, readme_path, dry_run=args.dry_run)
+        run_pipeline(events_path, table_path, dry_run=args.dry_run)
     except CSVSchemaError as exc:
         LOGGER.error("CSVスキーマエラー: %s", exc)
         LOGGER.debug("CSV schema error details", exc_info=True)
@@ -64,7 +64,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 def run_pipeline(
     events_path: Path,
-    readme_path: Path,
+    table_path: Path,
     *,
     dry_run: bool,
 ) -> None:
@@ -132,10 +132,10 @@ def run_pipeline(
     latest_rows = load_events(events_path)
     table_text = render_table(latest_rows, highlight_timestamp=timestamp)
 
-    if update_readme_table(readme_path, table_text):
-        LOGGER.info("README.md を更新しました。")
+    if update_markdown_table(table_path, table_text):
+        LOGGER.info("%s を更新しました。", table_path)
     else:
-        LOGGER.info("README.md に変更はありませんでした。")
+        LOGGER.info("%s に変更はありませんでした。", table_path)
 
 
 def _process_row(row: dict[str, str], timestamp: str) -> ProcessResult:
@@ -178,8 +178,11 @@ def _process_row(row: dict[str, str], timestamp: str) -> ProcessResult:
             for field, value in structured_details.items():
                 if not value:
                     continue
-                if extracted.get(field) in (None, "", "不明"):
-                    extracted[field] = value
+                extracted[field] = _merge_structured_value(
+                    field,
+                    extracted.get(field),
+                    value,
+                )
 
         if not isinstance(extracted, Mapping):
             raise ValueError("抽出結果がマッピングではありません")
@@ -238,14 +241,14 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Path to events.csv (default: %(default)s)",
     )
     parser.add_argument(
-        "--readme",
-        default=str(DEFAULT_README_PATH),
-        help="Path to README.md (default: %(default)s)",
+        "--table",
+        default=str(DEFAULT_TABLE_PATH),
+        help="Path to Markdown file containing the events table (default: %(default)s)",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Run without writing events.csv or README.md.",
+        help="Run without writing events.csv or the table output file.",
     )
     parser.add_argument(
         "--log-level",
@@ -264,6 +267,46 @@ def _configure_logging(level_name: str) -> None:
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
     logging.captureWarnings(True)
+
+
+def _merge_structured_value(
+    field: str,
+    ai_value: str | None,
+    structured_value: str,
+) -> str:
+    ai_value = (ai_value or "").strip()
+    structured_value = structured_value.strip()
+
+    if not structured_value:
+        return ai_value
+
+    if not ai_value or ai_value == "不明":
+        return structured_value
+
+    if field in {"event_date", "deadline"}:
+        if ai_value == structured_value:
+            return ai_value
+        if ai_value in structured_value:
+            return structured_value
+        if structured_value in ai_value:
+            return ai_value
+        return structured_value
+
+    if field == "location":
+        if ai_value == structured_value:
+            return ai_value
+        if ai_value and structured_value and ai_value.lower() == structured_value.lower():
+            return structured_value
+        if len(structured_value) >= len(ai_value):
+            return structured_value
+        return ai_value
+
+    if field == "event_name":
+        if len(structured_value) > len(ai_value):
+            return structured_value
+        return ai_value
+
+    return structured_value or ai_value
 
 
 def _select_best_event(
