@@ -63,7 +63,7 @@ def update_markdown_table(
     if not match:
         raise RuntimeError("Marker section not found.")
 
-    replacement = f"{MARKER_START}\n{table_text}\n{MARKER_END}"
+    replacement = f"{MARKER_START}\n\n{table_text}\n\n{MARKER_END}"
     updated_content = pattern.sub(replacement, content, count=1)
 
     if updated_content == content:
